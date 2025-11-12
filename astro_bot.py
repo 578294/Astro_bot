@@ -1,6 +1,5 @@
 """
 Данный файл представляет Tg-бота Astro_bot, который выдает гороскоп на каждый день.
-Интегрирован с PROXY API для генерации гороскопов через GPT.
 """
 
 import random
@@ -121,24 +120,24 @@ class GPT5HoroscopeService:
         self.base_url = PROXYAPI_BASE_URL
         self.model = "gpt-5-chat-latest"
 
-    def get_horoscope(self, zodiac_sign, period):
-        """Получение гороскопа через PROXY API"""
+    def get_horoscope(self, zodiac_sign, period, gender):
+        """Получение гороскопа через PROXY API с учетом пола"""
         try:
             if not self.api_key:
                 logger.error("PROXYAPI_KEY not configured")
-                return self._get_fallback_horoscope(zodiac_sign, period)
+                return self._get_fallback_horoscope(zodiac_sign, period, gender)
 
             zodiac_data = ZODIAC_SIGNS.get(zodiac_sign)
             if not zodiac_data:
-                return self._get_fallback_horoscope(zodiac_sign, period)
+                return self._get_fallback_horoscope(zodiac_sign, period, gender)
 
-            prompt = self._build_horoscope_prompt(zodiac_data, period)
+            prompt = self._build_horoscope_prompt(zodiac_data, period, gender)
 
-            return self._make_api_request(prompt, zodiac_data, period)
+            return self._make_api_request(prompt, zodiac_data, period, gender)
 
         except Exception as e:
             logger.error(f"Horoscope generation failed: {str(e)}")
-            return self._get_fallback_horoscope(zodiac_sign, period)
+            return self._get_fallback_horoscope(zodiac_sign, period, gender)
 
     def get_compatibility(self, sign1, gender1, sign2, gender2):
         """Получение совместимости через PROXY API"""
@@ -155,14 +154,14 @@ class GPT5HoroscopeService:
 
             prompt = self._build_compatibility_prompt(zodiac_data1, gender1, zodiac_data2, gender2)
 
-            return self._make_api_request(prompt, zodiac_data1, 'compatibility', zodiac_data2)
+            return self._make_api_request(prompt, zodiac_data1, 'compatibility', zodiac_data2, gender1, gender2)
 
         except Exception as e:
             logger.error(f"Compatibility generation failed: {str(e)}")
             return self._get_fallback_compatibility(sign1, gender1, sign2, gender2)
 
-    def _build_horoscope_prompt(self, zodiac_data, period):
-        """Создание промпта для гороскопа"""
+    def _build_horoscope_prompt(self, zodiac_data, period, gender):
+        """Создание промпта для гороскопа с учетом пола"""
         period_names = {
             'today': 'сегодня',
             'tomorrow': 'завтра',
@@ -174,8 +173,10 @@ class GPT5HoroscopeService:
         period_name = period_names.get(period, 'сегодня')
         current_date = datetime.now().strftime("%d.%m.%Y")
 
+        gender_text = "мужчины" if gender == 'мужчина' else "женщины"
+
         prompt = f"""
-СОСТАВЬ ПОДРОБНЫЙ ГОРОСКОП ДЛЯ ЗНАКА {zodiac_data['name']} {zodiac_data['emoji']}
+СОСТАВЬ ПОДРОБНЫЙ ПЕРСОНАЛИЗИРОВАННЫЙ ГОРОСКОП ДЛЯ {gender_text.upper()} ЗНАКА {zodiac_data['name']} {zodiac_data['emoji']}
 НА ПЕРИОД: {period_name} ({self._get_period_dates(period)})
 
 ТЕКУЩАЯ ДАТА: {current_date}
@@ -184,32 +185,34 @@ class GPT5HoroscopeService:
 - Стихия: {zodiac_data['element']}
 - Правящая планета: {zodiac_data['planet']}
 - Период действия: {zodiac_data['dates']}
+- Пол: {gender}
 
 СТРУКТУРА ГОРОСКОПА:
 
-🌟 ОБЩИЙ ПРОГНОЗ
-[Опиши общую энергетику периода]
+🌟 ОБЩИЙ ПРОГНОЗ ДЛЯ {gender_text.upper()}
+[Опиши общую энергетику периода с учетом гендерных особенностей]
 
 💖 ЛИЧНАЯ ЖИЗНЬ И ОТНОШЕНИЯ
-[Расскажи о романтических и семейных отношениях]
+[Расскажи о романтических и семейных отношениях, учитывая что это {gender_text}]
 
 💼 КАРЬЕРА И ФИНАНСЫ
-[Опиши профессиональные и финансовые перспективы]
+[Опиши профессиональные и финансовые перспективы для {gender_text}]
 
 🌿 ЗДОРОВЬЕ И САМОЧУВСТВИЕ
-[Дай рекомендации по здоровью]
+[Дай рекомендации по здоровью с учетом особенностей {gender_text}]
 
 📚 ЛИЧНОСТНЫЙ РОСТ
-[Расскажи о возможностях для развития]
+[Расскажи о возможностях для развития личности {gender_text}]
 
 🎯 ПРАКТИЧЕСКИЕ РЕКОМЕНДАЦИИ
-[Дай конкретные советы]
+[Дай конкретные советы для {gender_text} знака {zodiac_data['name']}]
 
 Требования:
 - Будь конкретным и практичным
 - Сохраняй позитивный тон
-- Учитывай характеристики знака {zodiac_data['name']}
+- Учитывай характеристики знака {zodiac_data['name']} и пол {gender}
 - Используй только указанную структуру
+- Учитывай гендерные особенности в рекомендациях
 """
 
         return prompt
@@ -228,40 +231,43 @@ class GPT5HoroscopeService:
 - Стихия: {zodiac_data1['element']}
 - Правящая планета: {zodiac_data1['planet']}
 - Основные черты: {self._get_zodiac_traits(zodiac_data1['name'])}
+- Пол: {gender1}
 
 {gender2.capitalize()} {zodiac_data2['name']}:
 - Стихия: {zodiac_data2['element']}
 - Правящая планета: {zodiac_data2['planet']}
 - Основные черты: {self._get_zodiac_traits(zodiac_data2['name'])}
+- Пол: {gender2}
 
-СТРУКТУРА АНАЛИЗА СОВМЕСТИМОСТИ:
+СТРУКТУРА АНАЛИЗА СОВМЕСТИМОСТИ (МАКСИМУМ 600 символов):
 
 💫 ОБЩАЯ СОВМЕСТИМОСТЬ
-[Оцени общую совместимость в процентах и дай общее описание]
+[Оцени общую совместимость в процентах и дай общее описание с учетом гендерных особенностей]
 
 ❤️ РОМАНТИЧЕСКАЯ СОВМЕСТИМОСТЬ
-[Проанализируй химию, страсть и романтические аспекты]
+[Проанализируй химию, страсть и романтические аспекты для {gender1} и {gender2}]
 
 🤝 ЭМОЦИОНАЛЬНАЯ СОВМЕСТИМОСТЬ
-[Опиши эмоциональную связь и понимание друг друга]
+[Опиши эмоциональную связь и понимание друг друга с учетом пола]
 
 💼 ПРАКТИЧЕСКАЯ СОВМЕСТИМОСТЬ
-[Проанализируй бытовые вопросы и совместные цели]
+[Проанализируй бытовые вопросы и совместные цели для этой пары]
 
 🌟 СИЛЬНЫЕ СТОРОНЫ СОЮЗА
-[Перечисли основные преимущества этого сочетания]
+[Перечисли основные преимущества этого сочетания с учетом гендерной динамики]
 
 ⚠️ ВОЗМОЖНЫЕ СЛОЖНОСТИ
-[Укажи потенциальные проблемы и разногласия]
+[Укажи потенциальные проблемы и разногласия, которые могут возникнуть между {gender1} и {gender2}]
 
 💡 РЕКОМЕНДАЦИИ ДЛЯ ПАРЫ
-[Дай практические советы для гармоничных отношений]
+[Дай практические советы для гармоничных отношений между {gender1} {zodiac_data1['name']} и {gender2} {zodiac_data2['name']}]
 
 Требования:
 - Будь объективным и честным
-- Учитывай гендерные особенности
+- Учитывай гендерные особенности обоих партнеров
 - Дай конкретные примеры и рекомендации
 - Сохраняй профессиональный тон
+- Учитывай комбинацию полов в анализе
 """
 
         return prompt
@@ -284,7 +290,7 @@ class GPT5HoroscopeService:
         }
         return traits.get(zodiac_name, '')
 
-    def _make_api_request(self, prompt, zodiac_data1, period, zodiac_data2=None):
+    def _make_api_request(self, prompt, zodiac_data1, period, zodiac_data2=None, gender1=None, gender2=None):
         """Общий метод для API запросов"""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -297,8 +303,6 @@ class GPT5HoroscopeService:
                 {"role": "system", "content": self._get_system_prompt()},
                 {"role": "user", "content": prompt}
             ],
-            "max_tokens": 1500,
-            "temperature": 0.7
         }
 
         response = requests.post(
@@ -319,7 +323,9 @@ class GPT5HoroscopeService:
                     'zodiac1_name': zodiac_data1['name'],
                     'zodiac1_emoji': zodiac_data1['emoji'],
                     'zodiac2_name': zodiac_data2['name'],
-                    'zodiac2_emoji': zodiac_data2['emoji']
+                    'zodiac2_emoji': zodiac_data2['emoji'],
+                    'gender1': gender1,
+                    'gender2': gender2
                 }
             else:
                 return {
@@ -327,25 +333,27 @@ class GPT5HoroscopeService:
                     'horoscope': content,
                     'period_dates': self._get_period_dates(period),
                     'zodiac_name': zodiac_data1['name'],
-                    'zodiac_emoji': zodiac_data1['emoji']
+                    'zodiac_emoji': zodiac_data1['emoji'],
+                    'gender': gender1
                 }
         else:
             logger.error(f"API request failed: {response.status_code}")
             if period == 'compatibility':
                 return self._get_fallback_compatibility(
-                    zodiac_data1['name'].lower(), '',
-                    zodiac_data2['name'].lower(), ''
+                    zodiac_data1['name'].lower(), gender1,
+                    zodiac_data2['name'].lower(), gender2
                 )
             else:
-                return self._get_fallback_horoscope(zodiac_data1['name'].lower(), period)
+                return self._get_fallback_horoscope(zodiac_data1['name'].lower(), period, gender1)
 
     def _get_system_prompt(self):
         """Системный промпт"""
         return """
 Ты - профессиональный астролог с большим опытом. 
 Составляй точные, полезные и мотивирующие гороскопы и анализы совместимости.
-Будь конкретным в рекомендациях и учитывай особенности каждого знака зодиака.
+Будь конкретным в рекомендациях и учитывай особенности каждого знака зодиака и гендерные особенности.
 Всегда следуй указанной структуре.
+Используй современные астрологические методики.
 """
 
     def _get_period_dates(self, period):
@@ -370,7 +378,7 @@ class GPT5HoroscopeService:
         else:
             return ""
 
-    def _get_fallback_horoscope(self, zodiac_sign, period):
+    def _get_fallback_horoscope(self, zodiac_sign, period, gender):
         """Резервный гороскоп на случай ошибки"""
         zodiac_data = ZODIAC_SIGNS.get(zodiac_sign, {
             'name': 'Неизвестный знак',
@@ -379,8 +387,10 @@ class GPT5HoroscopeService:
             'planet': ''
         })
 
-        fallback_text = f"""🌟 ОБЩИЙ ПРОГНОЗ
-Для {zodiac_data['name']} этот период обещает интересные возможности для роста и развития.
+        gender_text = "мужчины" if gender == 'мужчина' else "женщины"
+
+        fallback_text = f"""🌟 ОБЩИЙ ПРОГНОЗ ДЛЯ {gender_text.upper()}
+Для {gender_text} знака {zodiac_data['name']} этот период обещает интересные возможности для роста и развития.
 
 💖 ЛИЧНАЯ ЖИЗНЬ И ОТНОШЕНИЯ
 Время укреплять существующие связи и открываться новым знакомствам.
@@ -402,7 +412,8 @@ class GPT5HoroscopeService:
             'horoscope': fallback_text,
             'period_dates': self._get_period_dates(period),
             'zodiac_name': zodiac_data['name'],
-            'zodiac_emoji': zodiac_data['emoji']
+            'zodiac_emoji': zodiac_data['emoji'],
+            'gender': gender
         }
 
     def _get_fallback_compatibility(self, sign1, gender1, sign2, gender2):
@@ -411,7 +422,7 @@ class GPT5HoroscopeService:
         zodiac_data2 = ZODIAC_SIGNS.get(sign2, {'name': 'Неизвестный', 'emoji': '✨'})
 
         fallback_text = f"""💫 ОБЩАЯ СОВМЕСТИМОСТЬ
-Совместимость {zodiac_data1['name']} и {zodiac_data2['name']}: 75%
+Совместимость {gender1} {zodiac_data1['name']} и {gender2} {zodiac_data2['name']}: 75%
 
 ❤️ РОМАНТИЧЕСКАЯ СОВМЕСТИМОСТЬ
 Пара обладает хорошей химией и взаимным притяжением.
@@ -442,19 +453,32 @@ class GPT5HoroscopeService:
             'zodiac1_name': zodiac_data1['name'],
             'zodiac1_emoji': zodiac_data1['emoji'],
             'zodiac2_name': zodiac_data2['name'],
-            'zodiac2_emoji': zodiac_data2['emoji']
+            'zodiac2_emoji': zodiac_data2['emoji'],
+            'gender1': gender1,
+            'gender2': gender2
         }
 
 # Создаем экземпляр сервиса
 horoscope_service = GPT5HoroscopeService()
 
 # Создаем клавиатуры
-def get_main_keyboard():
-    """Главная клавиатура"""
+def get_main_menu_keyboard():
+    """Главное меню выбора функции"""
     keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    buttons = ['📅 Гороскоп на день', '💑 Совместимость', '📜 Знаки зодиака', 'ℹ️ Помощь']
+    buttons = ['🔮 Получить гороскоп', '💑 Проверить совместимость', '📜 Знаки зодиака', 'ℹ️ Помощь']
     keyboard.row(buttons[0], buttons[1])
     keyboard.row(buttons[2], buttons[3])
+    return keyboard
+
+def get_gender_keyboard(context=None):
+    """Клавиатура выбора пола"""
+    keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    if context == 'compatibility_target':
+        buttons = ['👨 С мужчиной', '👩 С женщиной', '🔙 Назад']
+    else:
+        buttons = ['👨 Мужчина', '👩 Женщина', '🔙 Назад']
+    keyboard.row(buttons[0], buttons[1])
+    keyboard.row(buttons[2])
     return keyboard
 
 def get_zodiac_keyboard():
@@ -496,14 +520,6 @@ def get_period_keyboard():
 
     return keyboard
 
-def get_gender_keyboard():
-    """Клавиатура выбора пола"""
-    keyboard = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    buttons = ['👨 Мужчина', '👩 Женщина', '🔙 Назад']
-    keyboard.row(buttons[0], buttons[1])
-    keyboard.row(buttons[2])
-    return keyboard
-
 @bot.message_handler(commands=['start'])
 @logger.catch
 def welcome(message: telebot.types.Message) -> None:
@@ -515,90 +531,97 @@ def welcome(message: telebot.types.Message) -> None:
 Привет, {user_name}! 👋
 
 Я AstroBot - твой личный астрологический помощник! 
-Я использую искусственный интеллект для создания персонализированных гороскопов и анализа совместимости.
+Я помогу в создании персонального гороскопа и анализа совместимости.
 
 ✨ <b>Выбери что тебя интересует:</b>"""
 
     bot.send_message(chat_id, welcome_text,
-                    reply_markup=get_main_keyboard(),
+                    reply_markup=get_main_menu_keyboard(),
                     parse_mode='HTML')
 
-@bot.message_handler(func=lambda message: message.text == '📅 Гороскоп на день')
+@bot.message_handler(func=lambda message: message.text == '🔮 Получить гороскоп')
 @logger.catch
-def horoscope_menu(message: telebot.types.Message) -> None:
-    """Меню гороскопа"""
+def horoscope_start(message: telebot.types.Message) -> None:
+    """Начало получения гороскопа"""
     chat_id = message.chat.id
-    bot.send_message(chat_id, "✨ <b>Выбери свой знак зодиака:</b>",
+    user_data[chat_id] = {'mode': 'horoscope', 'step': 'gender'}
+
+    bot.send_message(chat_id, "👤 <b>Для персонализированного гороскопа выбери свой пол:</b>",
+                    reply_markup=get_gender_keyboard(),
+                    parse_mode='HTML')
+
+@bot.message_handler(func=lambda message: message.text == '💑 Проверить совместимость')
+@logger.catch
+def compatibility_start(message: telebot.types.Message) -> None:
+    """Начало проверки совместимости"""
+    chat_id = message.chat.id
+    user_data[chat_id] = {'mode': 'compatibility', 'step': 'first_gender'}
+
+    bot.send_message(chat_id, "👤 <b>Выбери свой пол:</b>",
+                    reply_markup=get_gender_keyboard(),
+                    parse_mode='HTML')
+
+@bot.message_handler(func=lambda message: message.text in ['👨 Мужчина', '👩 Женщина'])
+@logger.catch
+def handle_gender_selection(message: telebot.types.Message) -> None:
+    """Обработчик выбора пола"""
+    chat_id = message.chat.id
+
+    if chat_id not in user_data:
+        bot.send_message(chat_id, "Пожалуйста, начните с выбора функции из главного меню.")
+        return
+
+    gender = 'мужчина' if message.text == '👨 Мужчина' else 'женщина'
+    mode = user_data[chat_id]['mode']
+    step = user_data[chat_id]['step']
+
+    if mode == 'horoscope' and step == 'gender':
+        user_data[chat_id].update({
+            'gender': gender,
+            'step': 'zodiac'
+        })
+        bot.send_message(chat_id, f"✨ <b>Отлично! Теперь выбери свой знак зодиака:</b>",
+                        reply_markup=get_zodiac_keyboard(),
+                        parse_mode='HTML')
+
+    elif mode == 'compatibility':
+        if step == 'first_gender':
+            user_data[chat_id].update({
+                'first_gender': gender,
+                'step': 'first_zodiac'
+            })
+            bot.send_message(chat_id, f"✨ <b>Теперь выбери свой знак зодиака:</b>",
+                            reply_markup=get_zodiac_keyboard(),
+                            parse_mode='HTML')
+
+        elif step == 'second_gender':
+            user_data[chat_id].update({
+                'second_gender': gender,
+                'step': 'second_zodiac'
+            })
+            bot.send_message(chat_id, f"✨ <b>Теперь выбери знак зодиака партнера:</b>",
+                            reply_markup=get_zodiac_keyboard(),
+                            parse_mode='HTML')
+
+@bot.message_handler(func=lambda message: message.text in ['👨 С мужчиной', '👩 С женщиной'])
+@logger.catch
+def handle_compatibility_target(message: telebot.types.Message) -> None:
+    """Обработчик выбора цели совместимости"""
+    chat_id = message.chat.id
+
+    if chat_id not in user_data or user_data[chat_id].get('mode') != 'compatibility':
+        bot.send_message(chat_id, "Пожалуйста, начните с выбора 'Проверить совместимость'")
+        return
+
+    gender = 'мужчина' if message.text == '👨 С мужчиной' else 'женщина'
+
+    user_data[chat_id].update({
+        'second_gender': gender,
+        'step': 'second_zodiac'
+    })
+
+    bot.send_message(chat_id, f"✨ <b>Теперь выбери знак зодиака партнера:</b>",
                     reply_markup=get_zodiac_keyboard(),
-                    parse_mode='HTML')
-
-@bot.message_handler(func=lambda message: message.text == '💑 Совместимость')
-@logger.catch
-def compatibility_menu(message: telebot.types.Message) -> None:
-    """Меню совместимости"""
-    chat_id = message.chat.id
-    user_data[chat_id] = {'mode': 'compatibility', 'step': 'first_sign'}
-
-    bot.send_message(chat_id, "👨 <b>Выбери первый знак зодиака:</b>",
-                    reply_markup=get_zodiac_keyboard(),
-                    parse_mode='HTML')
-
-@bot.message_handler(func=lambda message: message.text == '📜 Знаки зодиака')
-@logger.catch
-def zodiacs_command(message: telebot.types.Message) -> None:
-    """Список знаков зодиака с датами"""
-    zodiacs_text = "<b>Знаки зодиака и их периоды:</b>\n\n"
-
-    for sign_id, sign_data in ZODIAC_SIGNS.items():
-        zodiacs_text += f"{sign_data['emoji']} <b>{sign_data['name']}</b>\n"
-        zodiacs_text += f"   📅 {sign_data['dates']}\n"
-        zodiacs_text += f"   🌌 {sign_data['element']} | 🪐 {sign_data['planet']}\n\n"
-
-    bot.send_message(message.chat.id, zodiacs_text,
-                    reply_markup=get_main_keyboard(),
-                    parse_mode='HTML')
-
-@bot.message_handler(func=lambda message: message.text == 'ℹ️ Помощь')
-@logger.catch
-def help_command(message: telebot.types.Message) -> None:
-    """Команда помощи"""
-    help_text = """
-🤖 <b>AstroBot - Помощник по гороскопам</b>
-
-<b>Доступные функции:</b>
-📅 <b>Гороскоп на день</b> - ежедневные прогнозы для вашего знака
-💑 <b>Совместимость</b> - анализ отношений между двумя знаками
-📜 <b>Знаки зодиака</b> - информация о всех знаках
-
-<b>Как пользоваться:</b>
-1. Выбери нужную функцию
-2. Следуй инструкциям бота
-3. Получи детальный анализ!
-
-<b>✨ Особенности:</b>
-• Генерация с использованием карты звезд
-• Учет гендерных особенностей
-• Профессиональные астрологические анализы
-• Быстрые и точные прогнозы
-
-<b>Команды:</b>
-/start - Главное меню
-/help - Эта справка
-"""
-    bot.send_message(message.chat.id, help_text,
-                    reply_markup=get_main_keyboard(),
-                    parse_mode='HTML')
-
-@bot.message_handler(func=lambda message: message.text == '🔙 Назад')
-@logger.catch
-def back_command(message: telebot.types.Message) -> None:
-    """Возврат в главное меню"""
-    chat_id = message.chat.id
-    if chat_id in user_data:
-        del user_data[chat_id]
-
-    bot.send_message(chat_id, "🔙 <b>Возвращаемся в главное меню</b>",
-                    reply_markup=get_main_keyboard(),
                     parse_mode='HTML')
 
 @bot.message_handler(func=lambda message: any(sign_data['name'] in message.text for sign_data in ZODIAC_SIGNS.values()))
@@ -619,14 +642,23 @@ def handle_zodiac_selection(message: telebot.types.Message) -> None:
         bot.send_message(chat_id, "Пожалуйста, выбери знак зодиака из списка.")
         return
 
-    # Определяем режим работы
     if chat_id not in user_data:
-        # Режим гороскопа
-        user_data[chat_id] = {'zodiac_sign': selected_sign}
+        bot.send_message(chat_id, "Пожалуйста, начните с выбора функции из главного меню.")
+        return
+
+    mode = user_data[chat_id]['mode']
+    step = user_data[chat_id]['step']
+
+    if mode == 'horoscope' and step == 'zodiac':
+        user_data[chat_id].update({
+            'zodiac_sign': selected_sign,
+            'step': 'period'
+        })
         zodiac_data = ZODIAC_SIGNS[selected_sign]
 
         response_text = f"""
 ✅ <b>Выбран знак: {zodiac_data['emoji']} {zodiac_data['name']}</b>
+👤 Пол: {user_data[chat_id]['gender']}
 📅 Период: {zodiac_data['dates']}
 🌌 Стихия: {zodiac_data['element']}
 🪐 Планета: {zodiac_data['planet']}
@@ -637,90 +669,56 @@ def handle_zodiac_selection(message: telebot.types.Message) -> None:
                         reply_markup=get_period_keyboard(),
                         parse_mode='HTML')
 
-    elif user_data[chat_id].get('mode') == 'compatibility':
-        # Режим совместимости
-        step = user_data[chat_id].get('step')
-
-        if step == 'first_sign':
+    elif mode == 'compatibility':
+        if step == 'first_zodiac':
             user_data[chat_id].update({
                 'first_sign': selected_sign,
-                'step': 'first_gender'
-            })
-            bot.send_message(chat_id, f"👨 <b>Выбери пол для {ZODIAC_SIGNS[selected_sign]['name']}:</b>",
-                            reply_markup=get_gender_keyboard(),
-                            parse_mode='HTML')
-
-        elif step == 'second_sign':
-            user_data[chat_id].update({
-                'second_sign': selected_sign,
                 'step': 'second_gender'
             })
-            bot.send_message(chat_id, f"👩 <b>Выбери пол для {ZODIAC_SIGNS[selected_sign]['name']}:</b>",
-                            reply_markup=get_gender_keyboard(),
+            bot.send_message(chat_id, f"💑 <b>С кем ты хочешь проверить совместимость?</b>",
+                            reply_markup=get_gender_keyboard('compatibility_target'),
                             parse_mode='HTML')
 
-@bot.message_handler(func=lambda message: message.text in ['👨 Мужчина', '👩 Женщина'])
-@logger.catch
-def handle_gender_selection(message: telebot.types.Message) -> None:
-    """Обработчик выбора пола"""
-    chat_id = message.chat.id
+        elif step == 'second_zodiac':
+            user_data[chat_id].update({
+                'second_sign': selected_sign
+            })
 
-    if chat_id not in user_data or user_data[chat_id].get('mode') != 'compatibility':
-        bot.send_message(chat_id, "Пожалуйста, начните с выбора 'Совместимость'")
-        return
+            # Все данные собраны - генерируем совместимость
+            first_sign = user_data[chat_id]['first_sign']
+            first_gender = user_data[chat_id]['first_gender']
+            second_sign = user_data[chat_id]['second_sign']
+            second_gender = user_data[chat_id]['second_gender']
 
-    step = user_data[chat_id].get('step')
-    gender = 'мужчина' if message.text == '👨 Мужчина' else 'женщина'
+            zodiac1 = ZODIAC_SIGNS[first_sign]
+            zodiac2 = ZODIAC_SIGNS[second_sign]
 
-    if step == 'first_gender':
-        user_data[chat_id].update({
-            'first_gender': gender,
-            'step': 'second_sign'
-        })
-        bot.send_message(chat_id, "✨ <b>Выбери второй знак зодиака:</b>",
-                        reply_markup=get_zodiac_keyboard(),
-                        parse_mode='HTML')
+            loading_msg = bot.send_message(chat_id, "💞 <i>Анализирую совместимость ... Это займет несколько секунд.</i>",
+                                          parse_mode='HTML')
 
-    elif step == 'second_gender':
-        user_data[chat_id].update({
-            'second_gender': gender
-        })
+            result = horoscope_service.get_compatibility(first_sign, first_gender, second_sign, second_gender)
 
-        # Все данные собраны - генерируем совместимость
-        first_sign = user_data[chat_id]['first_sign']
-        first_gender = user_data[chat_id]['first_gender']
-        second_sign = user_data[chat_id]['second_sign']
-        second_gender = user_data[chat_id]['second_gender']
+            bot.delete_message(chat_id, loading_msg.message_id)
 
-        zodiac1 = ZODIAC_SIGNS[first_sign]
-        zodiac2 = ZODIAC_SIGNS[second_sign]
-
-        loading_msg = bot.send_message(chat_id, "💞 <i>Анализирую совместимость... Это займет несколько секунд.</i>",
-                                      parse_mode='HTML')
-
-        result = horoscope_service.get_compatibility(first_sign, first_gender, second_sign, second_gender)
-
-        bot.delete_message(chat_id, loading_msg.message_id)
-
-        if result['success']:
-            response = f"""
+            if result['success']:
+                response = f"""
 💑 <b>СОВМЕСТИМОСТЬ</b> 💑
 
-{first_gender.capitalize()} {zodiac1['emoji']} <b>{zodiac1['name']}</b>
-и
-{second_gender.capitalize()} {zodiac2['emoji']} <b>{zodiac2['name']}</b>
+👤 {first_gender.capitalize()} {zodiac1['emoji']} <b>{zodiac1['name']}</b>
+💞 
+👤 {second_gender.capitalize()} {zodiac2['emoji']} <b>{zodiac2['name']}</b>
 
 {result['compatibility']}
 
 ✨ <i>Пусть ваши отношения будут гармоничными!</i>"""
 
-            bot.send_message(chat_id, response,
-                            reply_markup=get_main_keyboard(),
-                            parse_mode='HTML')
-        else:
-            bot.send_message(chat_id,
-                            "❌ Извините, произошла ошибка при анализе совместимости. Попробуйте позже.",
-                            reply_markup=get_main_keyboard())
+                bot.send_message(chat_id, response,
+                                reply_markup=get_main_menu_keyboard(),
+                                parse_mode='HTML')
+            else:
+                bot.send_message(chat_id,
+                                "❌ Извините, произошла ошибка при анализе совместимости. Попробуйте позже.",
+                                reply_markup=get_main_menu_keyboard())
 
 @bot.message_handler(func=lambda message: any(period in message.text for period in [
     'Сегодня (', 'Завтра (', 'Неделя', 'Месяц (', 'Год ('
@@ -736,6 +734,7 @@ def handle_period_selection(message: telebot.types.Message) -> None:
         return
 
     zodiac_sign = user_data[chat_id]['zodiac_sign']
+    gender = user_data[chat_id]['gender']
     period_text = message.text
 
     # Определяем период по тексту кнопки
@@ -754,11 +753,11 @@ def handle_period_selection(message: telebot.types.Message) -> None:
         return
 
     # Отправляем сообщение о загрузке
-    loading_msg = bot.send_message(chat_id, "🔮 <i>Составляю ваш гороскоп... Это займет несколько секунд.</i>",
+    loading_msg = bot.send_message(chat_id, "🔮 <i>Составляю ваш персональный гороскоп... Это займет несколько секунд.</i>",
                                   parse_mode='HTML')
 
     # Получаем гороскоп
-    result = horoscope_service.get_horoscope(zodiac_sign, period)
+    result = horoscope_service.get_horoscope(zodiac_sign, period, gender)
 
     # Удаляем сообщение о загрузке
     bot.delete_message(chat_id, loading_msg.message_id)
@@ -775,21 +774,83 @@ def handle_period_selection(message: telebot.types.Message) -> None:
             'year': 'Год'
         }.get(period, period)
 
+        gender_text = "мужчины" if gender == 'мужчина' else "женщины"
+
         response = f"""
-{zodiac_data['emoji']} <b>ГОРОСКОП ДЛЯ {zodiac_data['name'].upper()}</b> {zodiac_data['emoji']}
+{zodiac_data['emoji']} <b>ПЕРСОНАЛИЗИРОВАННЫЙ ГОРОСКОП ДЛЯ {gender_text.upper()}</b> {zodiac_data['emoji']}
 📅 <b>Период:</b> {period_display} ({result['period_dates']})
+👤 <b>Знак:</b> {zodiac_data['name']} | <b>Пол:</b> {gender}
 
 {result['horoscope']}
 
 ✨ <i>Пусть звезды благоволят вам!</i>"""
 
         bot.send_message(chat_id, response,
-                        reply_markup=get_main_keyboard(),
+                        reply_markup=get_main_menu_keyboard(),
                         parse_mode='HTML')
     else:
         bot.send_message(chat_id,
                         "❌ Извините, произошла ошибка при генерации гороскопа. Попробуйте позже.",
-                        reply_markup=get_main_keyboard())
+                        reply_markup=get_main_menu_keyboard())
+
+@bot.message_handler(func=lambda message: message.text == '📜 Знаки зодиака')
+@logger.catch
+def zodiacs_command(message: telebot.types.Message) -> None:
+    """Список знаков зодиака с датами"""
+    zodiacs_text = "<b>Знаки зодиака и их периоды:</b>\n\n"
+
+    for sign_id, sign_data in ZODIAC_SIGNS.items():
+        zodiacs_text += f"{sign_data['emoji']} <b>{sign_data['name']}</b>\n"
+        zodiacs_text += f"   📅 {sign_data['dates']}\n"
+        zodiacs_text += f"   🌌 {sign_data['element']} | 🪐 {sign_data['planet']}\n\n"
+
+    bot.send_message(message.chat.id, zodiacs_text,
+                    reply_markup=get_main_menu_keyboard(),
+                    parse_mode='HTML')
+
+@bot.message_handler(func=lambda message: message.text == 'ℹ️ Помощь')
+@logger.catch
+def help_command(message: telebot.types.Message) -> None:
+    """Команда помощи"""
+    help_text = """
+🤖 <b>AstroBot - Помощник по гороскопам</b>
+
+<b>Доступные функции:</b>
+🔮 <b>Получить гороскоп</b> - персонализированные ежедневные прогнозы с учетом пола
+💑 <b>Проверить совместимость</b> - анализ отношений между двумя знаками с учетом гендерных особенностей
+📜 <b>Знаки зодиака</b> - информация о всех знаках
+
+<b>✨ Особенности:</b>
+• Анализ открытых источников
+• Учет гендерных особенностей в прогнозах
+• Профессиональные астрологические анализы
+• Персонализированные рекомендации
+
+<b>Как пользоваться:</b>
+1. Выбери нужную функцию
+2. Укажи свой пол для персонализации
+3. Выбери знак зодиака
+4. Получи детальный анализ!
+
+<b>Команды:</b>
+/start - Главное меню
+/help - Эта справка
+"""
+    bot.send_message(message.chat.id, help_text,
+                    reply_markup=get_main_menu_keyboard(),
+                    parse_mode='HTML')
+
+@bot.message_handler(func=lambda message: message.text == '🔙 Назад')
+@logger.catch
+def back_command(message: telebot.types.Message) -> None:
+    """Возврат в главное меню"""
+    chat_id = message.chat.id
+    if chat_id in user_data:
+        del user_data[chat_id]
+
+    bot.send_message(chat_id, "🔙 <b>Возвращаемся в главное меню</b>",
+                    reply_markup=get_main_menu_keyboard(),
+                    parse_mode='HTML')
 
 @bot.message_handler(func=lambda message: True)
 @logger.catch
@@ -798,8 +859,8 @@ def handle_other_messages(message: telebot.types.Message) -> None:
     chat_id = message.chat.id
     bot.send_message(chat_id,
                     "Я понимаю только команды и кнопки. Используй /start чтобы начать!",
-                    reply_markup=get_main_keyboard())
+                    reply_markup=get_main_menu_keyboard())
 
 if __name__ == "__main__":
-    print("Бот Astro_bot запущен с функцией совместимости!")
+    print("Бот Astro_bot запущен с обновленной логикой и использованием GPT-5!")
     bot.infinity_polling()
